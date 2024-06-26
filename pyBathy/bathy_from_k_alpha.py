@@ -4,7 +4,7 @@ from .bathy_ci import bathy_ci
 from .utils import k_invert_depth_model
 
 
-def bathy_from_k_alpha_short(bathy):
+def bathy_from_k_alpha(bathy):
     g = 9.81  # gravity
     ri = np.arange(0, 1.01, 0.01)
     ai = (1 - np.cos(np.pi * (0.5 + 0.5 * ri))) ** 2

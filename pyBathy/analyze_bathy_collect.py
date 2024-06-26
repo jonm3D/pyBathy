@@ -1,15 +1,22 @@
 import numpy as np
 from .utils import find_interp_map, use_interp_map
-from .bathy_from_k_alpha_short import bathy_from_k_alpha_short
+from .bathy_from_k_alpha import bathy_from_k_alpha
 from .fix_bathy_tide import fix_bathy_tide
 from .prepare_tiles import prepare_tiles
-from .csm_invert_k_alpha_short import csm_invert_k_alpha_short
+from .csm_invert_k_alpha import csm_invert_k_alpha
 from scipy.signal import detrend
 from scipy.fftpack import fft
+import matplotlib.pyplot as plt
+from multiprocessing import Pool, cpu_count
+from tqdm import tqdm  # Import tqdm for progress bar
+from .prep_bathy_input import prep_bathy_input
 
-
-def analyze_bathy_collect_short(xyz, epoch, data, cam, bathy, long_ok_flag=False):
+def analyze_bathy_collect(xyz, epoch, data, cam, bathy, long_ok_flag=False):
     import time
+
+    def parallel_invert(args):
+        yind, f, G, xyz, cam, x, y, bathy = args
+        return csm_invert_k_alpha(f, G, xyz[:, :2], cam, x, y, bathy)
 
     start_time = time.time()
     bathy["ver"] = "cBathyVersion"
@@ -32,7 +39,7 @@ def analyze_bathy_collect_short(xyz, epoch, data, cam, bathy, long_ok_flag=False
                 print("Aborting")
                 return
 
-    f, G, bathy = prep_bathy_input_short(xyz, epoch, data, bathy)
+    f, G, bathy = prep_bathy_input(xyz, epoch, data, bathy)
 
     if bathy["params"]["debug"]["DOPLOTSTACKANDPHASEMAPS"]:
         plot_stacks_and_phase_maps(xyz, epoch, data, f, G, bathy["params"])
@@ -81,42 +88,38 @@ def analyze_bathy_collect_short(xyz, epoch, data, cam, bathy, long_ok_flag=False
         plt.ylabel("y (m)")
         plt.title("Analysis Progress")
         plt.draw()
-        plt.hold(True)
 
-    for xind in range(len(bathy["xm"])):
-        fDep = [None] * len(bathy["ym"])
-        camUsed = np.zeros(len(bathy["ym"]))
+    print("Starting parallel processing for csm_invert_k_alpha...")
 
-        if bathy["params"]["debug"]["DOSHOWPROGRESS"]:
-            for yind in range(len(bathy["ym"])):
-                fDep[yind], camUsed[yind] = csm_invert_k_alpha_short(
-                    f, G, xyz[:, :2], cam, bathy["xm"][xind], bathy["ym"][yind], bathy
-                )
-        else:
-            for yind in range(len(bathy["ym"])):
-                fDep[yind], camUsed[yind] = csm_invert_k_alpha_short(
-                    f, G, xyz[:, :2], cam, bathy["xm"][xind], bathy["ym"][yind], bathy
-                )
+    with tqdm(total=len(bathy["xm"])) as pbar:  # Initialize progress bar
+        for xind in range(len(bathy["xm"])):
+            args = [(yind, f, G, xyz, cam, bathy["xm"][xind], bathy["ym"][yind], bathy) for yind in range(len(bathy["ym"]))]
+            with Pool(processes=cpu_count()) as pool:
+                results = pool.map(parallel_invert, args)
+            
+            for yind, (fDep, camUsed) in enumerate(results):
+                bathy["fDependent"]["kSeed"][yind, xind, :] = fDep["kSeed"]
+                bathy["fDependent"]["aSeed"][yind, xind, :] = fDep["aSeed"]
+                bathy["fDependent"]["camUsed"][yind, xind] = camUsed
+                if any(~np.isnan(fDep["k"])):
+                    bathy["fDependent"]["k"][yind, xind, :] = fDep["k"]
+                    bathy["fDependent"]["a"][yind, xind, :] = fDep["a"]
+                    bathy["fDependent"]["dof"][yind, xind, :] = fDep["dof"]
+                    bathy["fDependent"]["skill"][yind, xind, :] = fDep["skill"]
+                    bathy["fDependent"]["lam1"][yind, xind, :] = fDep["lam1"]
+                    bathy["fDependent"]["kErr"][yind, xind, :] = fDep["kErr"]
+                    bathy["fDependent"]["aErr"][yind, xind, :] = fDep["aErr"]
+                    bathy["fDependent"]["hTemp"][yind, xind, :] = fDep["hTemp"]
+                    bathy["fDependent"]["hTempErr"][yind, xind, :] = fDep["hTempErr"]
+                    bathy["fDependent"]["NPixels"][yind, xind, :] = fDep["NPixels"]
+                    bathy["fDependent"]["NCalls"][yind, xind, :] = fDep["NCalls"]
+            
+            pbar.update(1)  # Update progress bar for each x index
 
-        for ind in range(len(bathy["ym"])):
-            bathy["fDependent"]["kSeed"][ind, xind, :] = fDep[ind]["kSeed"]
-            bathy["fDependent"]["aSeed"][ind, xind, :] = fDep[ind]["aSeed"]
-            bathy["fDependent"]["camUsed"][ind, xind] = camUsed[ind]
-            if any(~np.isnan(fDep[ind]["k"])):
-                bathy["fDependent"]["k"][ind, xind, :] = fDep[ind]["k"]
-                bathy["fDependent"]["a"][ind, xind, :] = fDep[ind]["a"]
-                bathy["fDependent"]["dof"][ind, xind, :] = fDep[ind]["dof"]
-                bathy["fDependent"]["skill"][ind, xind, :] = fDep[ind]["skill"]
-                bathy["fDependent"]["lam1"][ind, xind, :] = fDep[ind]["lam1"]
-                bathy["fDependent"]["kErr"][ind, xind, :] = fDep[ind]["kErr"]
-                bathy["fDependent"]["aErr"][ind, xind, :] = fDep[ind]["aErr"]
-                bathy["fDependent"]["hTemp"][ind, xind, :] = fDep[ind]["hTemp"]
-                bathy["fDependent"]["hTempErr"][ind, xind, :] = fDep[ind]["hTempErr"]
-                bathy["fDependent"]["NPixels"][ind, xind, :] = fDep[ind]["NPixels"]
-                bathy["fDependent"]["NCalls"][ind, xind, :] = fDep[ind]["NCalls"]
-
-    bathy = bathy_from_k_alpha_short(bathy)
+    bathy = bathy_from_k_alpha(bathy)
     bathy = fix_bathy_tide(bathy)
     bathy["cpuTime"] = time.time() - start_time
 
+    print("Completed parallel processing for csm_invert_k_alpha.")
+    
     return bathy

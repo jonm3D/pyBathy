@@ -4,3 +4,4 @@ scikit-image
 scipy
 scikit-learn
 netCDF4
+tqdm
