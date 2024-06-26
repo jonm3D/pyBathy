@@ -2,25 +2,28 @@ import numpy as np
 from scipy.fftpack import fft
 from scipy.signal import detrend
 
-
 def prep_bathy_input(xyz, epoch, data, bathy):
     params = bathy["params"]
 
-    if epoch.shape[1] > epoch.shape[0]:
-        epoch = epoch.T
+    # Ensure epoch is a column vector
+    if epoch.ndim == 1:
+        epoch = epoch.reshape(-1, 1)
 
     fB = params["fB"]
     dfB = fB[1] - fB[0]
 
+    # Detrend and FFT the data along the time axis (axis=0)
     G = fft(detrend(data.astype(np.float64), axis=0), axis=0)
 
+    # Calculate the time step and frequency vector
     dt = np.mean(np.diff(epoch, axis=0))
     df = 1 / (len(epoch) * dt)
     f = np.arange(0, 1 / (2 * dt), df)
 
-    id = (f >= fB[0]) & (f <= fB[-1])
-    f = f[id]
-    G = G[id, :]
+    # Filter the frequency vector and corresponding FFT results
+    freq_indices = np.where((f >= fB[0]) & (f <= fB[-1]))[0]
+    f = f[freq_indices]
+    G = G[freq_indices, :]
 
     dxm = params["dxm"]
     dym = params["dym"]

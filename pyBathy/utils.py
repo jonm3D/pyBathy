@@ -1,5 +1,7 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
+import os
+import matplotlib.pyplot as plt
 
 def find_interp_map(xyz, pa, map=None, kn=1, do_nan=0):
     x = np.arange(pa[0], pa[2], pa[1])
