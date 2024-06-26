@@ -21,7 +21,7 @@ def skysat():
         "nKeep": 4,
         "debug": {
             "production": 1,
-            "DOPLOTSTACKANDPHASEMAPS": 1,
+            "DOPLOTSTACKANDPHASEMAPS": 0,
             "DOSHOWPROGRESS": 0,
             "DOPLOTPHASETILE": 0,
             "TRANSECTX": 200,

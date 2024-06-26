@@ -3,37 +3,37 @@ from sklearn.neighbors import NearestNeighbors
 import os
 import matplotlib.pyplot as plt
 
-def find_interp_map(xyz, pa, map=None, kn=1, do_nan=0):
-    x = np.arange(pa[0], pa[2], pa[1])
-    y = np.arange(pa[3], pa[5], pa[4])
+def find_interp_map(xyz, pa, interpolation_map=None, kn=1, do_nan=0):
+    x_coords = np.arange(pa[0], pa[2], pa[1])
+    y_coords = np.arange(pa[3], pa[5], pa[4])
 
-    if map is not None:
-        return x, y, map, None
+    if interpolation_map is not None:
+        return x_coords, y_coords, interpolation_map, None
 
-    Nx, Ny = len(x), len(y)
-    X, Y = np.meshgrid(x, y)
+    Nx, Ny = len(x_coords), len(y_coords)
+    X, Y = np.meshgrid(x_coords, y_coords)
     X, Y = X.flatten(), Y.flatten()
 
     knn = NearestNeighbors(n_neighbors=kn)
     knn.fit(xyz[:, :2])
     distances, indices = knn.kneighbors(np.column_stack((X, Y)))
 
-    wt = 1.0 / (distances + np.finfo(float).eps)
-    wt = wt / np.sum(wt, axis=1, keepdims=True)
+    weights = 1.0 / (distances + np.finfo(float).eps)
+    weights = weights / np.sum(weights, axis=1, keepdims=True)
 
     if do_nan > 0:
-        wt[distances > do_nan] = np.nan
+        weights[distances > do_nan] = np.nan
 
-    return x, y, indices, wt
+    return x_coords, y_coords, indices, weights
 
-def use_interp_map(I, map, wt):
-    shape = map.shape
+def use_interp_map(image, interp_map, weights):
+    shape = interp_map.shape
     interpolated_values = np.zeros(shape[0])
 
     for i in range(shape[0]):
-        valid_indices = ~np.isnan(wt[i, :])
+        valid_indices = ~np.isnan(weights[i, :])
         if np.any(valid_indices):
-            interpolated_values[i] = np.sum(I[map[i, valid_indices]] * wt[i, valid_indices])
+            interpolated_values[i] = np.sum(image[interp_map[i, valid_indices]] * weights[i, valid_indices])
         else:
             interpolated_values[i] = np.nan
 
@@ -42,7 +42,7 @@ def use_interp_map(I, map, wt):
 def plot_stacks_and_phase_maps(xyz, epoch, data, f, G, params):
     plt.figure(10)
     plt.clf()
-    plt.scatter(xyz[:, 0], xyz[:, 1], c=np.angle(G[0, :]), s=1)
+    plt.scatter(xyz[:, 0], xyz[:, 1], c=np.angle(G[0, :xyz.shape[0]]), s=1)
     plt.colorbar()
     plt.title('Phase Map')
     plt.xlabel('X')
@@ -58,6 +58,7 @@ def plot_stacks_and_phase_maps(xyz, epoch, data, f, G, params):
     plt.draw()
 
     plt.show()
+
 
 def plot_region_of_interest(Xg, Yg, image, output_dir, collect_id):
     plt.figure()

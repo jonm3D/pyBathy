@@ -7,6 +7,7 @@ from .fix_bathy_tide import fix_bathy_tide
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from .prep_bathy_input import prep_bathy_input
+import matplotlib.pyplot as plt
 
 def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     import time
@@ -35,22 +36,22 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     xy = bathy["params"]["xyMinMax"]
     dxy = [bathy["params"]["dxm"], bathy["params"]["dym"]]
     pa = [xy[0], dxy[0], xy[1], xy[2], dxy[1], xy[3]]
-    xm, ym, map, wt = find_interp_map(xyz, pa, [])
-    timex = use_interp_map(IBar, map, wt)
+    xm, ym, indices, weights = find_interp_map(xyz, pa, None)
+    timex = use_interp_map(IBar, indices, weights)
     bathy["timex"] = timex.reshape((len(ym), len(xm)))
-    bright = use_interp_map(IBright, map, wt)
+    bright = use_interp_map(IBright, indices, weights)
     bathy["bright"] = bright.reshape((len(ym), len(xm)))
-    dark = use_interp_map(IDark, map, wt)
+    dark = use_interp_map(IDark, indices, weights)
     bathy["dark"] = dark.reshape((len(ym), len(xm)))
 
     # Find dominant frequencies for the entire collection region
     timex_bar = np.mean(bathy["timex"], axis=0)
     min_ratio = 4
     min0 = np.min(timex_bar) - (np.max(timex_bar) - np.min(timex_bar)) / min_ratio
-    weights = 1.0 / np.interp(xyz[:, 0], xm, timex_bar - min0)
-    good = ~np.isnan(weights)
-    GWt = G[:, good] * weights[good]
-    GWt = GWt / np.sum(weights[good])
+    interp_weights = 1.0 / np.interp(xyz[:, 0], xm, timex_bar - min0)
+    valid_weights = ~np.isnan(interp_weights)
+    GWt = G[:, valid_weights] * interp_weights[valid_weights]
+    GWt = GWt / np.sum(interp_weights[valid_weights])
     GBar = np.mean(np.abs(GWt), axis=1)
     GBar2 = detrend(GBar)
     GSortInd = np.argsort(GBar)[::-1]
@@ -77,7 +78,7 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
         yind, f, G, xyz, cam, x, y, bathy = args
         return csm_invert_k_alpha(f, G, xyz[:, :2], cam, x, y, bathy)
 
-    with tqdm(total=len(bathy["xm"]) * len(bathy["ym"])) as pbar:
+    with tqdm(total=len(bathy["xm"]) * len(bathy["ym"])) as progress_bar:
         for xind in range(len(bathy["xm"])):
             args = [(yind, f, G, xyz, cam, bathy["xm"][xind], bathy["ym"][yind], bathy) for yind in range(len(bathy["ym"]))]
             with Pool(processes=cpu_count()) as pool:
@@ -100,7 +101,7 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
                     bathy["fDependent"]["NPixels"][yind, xind, :] = fDep["NPixels"]
                     bathy["fDependent"]["NCalls"][yind, xind, :] = fDep["NCalls"]
 
-                pbar.update(1)
+                progress_bar.update(1)
 
     bathy = bathy_from_k_alpha(bathy)
     bathy = fix_bathy_tide(bathy)
