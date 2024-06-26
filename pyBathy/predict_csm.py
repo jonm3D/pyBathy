@@ -3,6 +3,7 @@ import numpy as np
 # Assuming these variables are defined elsewhere in your script or environment
 global callCount, v, centerInd
 
+
 def predict_csm(kAlpha, xyw):
     """
     Compute complex cross-spectral matrix from wavenumber and direction,
@@ -17,7 +18,7 @@ def predict_csm(kAlpha, xyw):
         q: complex correlation as a list of real and imaginary coefficients
     """
     global callCount, v, centerInd
-    
+
     kx = -kAlpha[0] * np.cos(kAlpha[1])
     ky = -kAlpha[0] * np.sin(kAlpha[1])
     kxky = np.array([kx, ky])
@@ -25,8 +26,8 @@ def predict_csm(kAlpha, xyw):
     phi = np.angle(v[centerInd]) - np.angle(q[centerInd])
     q = q * np.exp(1j * phi)  # phase offset
     q = q * xyw[:, 2]
-    
+
     q = np.concatenate([np.real(q), np.imag(q)])
     callCount += 1
-    
+
     return q

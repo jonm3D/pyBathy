@@ -2,6 +2,7 @@ import netCDF4 as nc
 import datetime
 import numpy as np
 
+
 def getThreddsTideTp(t):
     """
     Get peak period and water level from the FRF thredds server
@@ -26,14 +27,15 @@ def getThreddsTideTp(t):
 
     frf_base = "https://chlthredds.erdc.dren.mil/thredds/dodsC/frf/"
     # Peak period Dataset
-    ds = Dataset(frf_base
-                 + "oceanography/waves/8m-array/"
-                 + str(yr)
-                 + "/FRF-ocean_waves_8m-array_"
-                 + str(yr)
-                 + mon_str
-                 + ".nc",
-                 "r",
+    ds = Dataset(
+        frf_base
+        + "oceanography/waves/8m-array/"
+        + str(yr)
+        + "/FRF-ocean_waves_8m-array_"
+        + str(yr)
+        + mon_str
+        + ".nc",
+        "r",
     )
     wave_Tp = ds.variables["waveTp"][:]
     thredds_time_Tp = np.asarray(ds.variables["time"][:])
@@ -41,14 +43,15 @@ def getThreddsTideTp(t):
     # Water Level Dataset
     try:
         # Try EOP
-        ds2 = Dataset(frf_base
-                      + "oceanography/waterlevel/eopNoaaTide/"
-                      + str(yr)
-                      + "/FRF-ocean_waterlevel_eopNoaaTide_"
-                      + str(yr)
-                      + mon_str
-                      + ".nc",
-                      "r",
+        ds2 = Dataset(
+            frf_base
+            + "oceanography/waterlevel/eopNoaaTide/"
+            + str(yr)
+            + "/FRF-ocean_waterlevel_eopNoaaTide_"
+            + str(yr)
+            + mon_str
+            + ".nc",
+            "r",
         )
         waterlevel = ds2.variables["waterLevel"][:]
         thredds_time_WL = np.asarray(ds2.variables["time"][:])
