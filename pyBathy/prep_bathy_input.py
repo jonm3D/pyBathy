@@ -23,7 +23,7 @@ def prep_bathy_input(xyz, epoch, data, bathy):
     # Filter the frequency vector and corresponding FFT results
     freq_indices = np.where((f >= fB[0]) & (f <= fB[-1]))[0]
     f = f[freq_indices]
-    G = G[freq_indices, :]
+    G = G[:, freq_indices]
 
     dxm = params["dxm"]
     dym = params["dym"]

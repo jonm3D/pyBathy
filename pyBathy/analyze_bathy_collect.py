@@ -30,9 +30,9 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
 
     # Create and save a time exposure, brightest, and darkest images
     data = data.astype(np.float64)
-    IBar = np.mean(data, axis=0)
-    IBright = np.max(data, axis=0)
-    IDark = np.min(data, axis=0)
+    IBar = np.mean(data, axis=1)
+    IBright = np.max(data, axis=1)
+    IDark = np.min(data, axis=1)
     xy = bathy["params"]["xyMinMax"]
     dxy = [bathy["params"]["dxm"], bathy["params"]["dym"]]
     pa = [xy[0], dxy[0], xy[1], xy[2], dxy[1], xy[3]]
@@ -50,7 +50,7 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     min0 = np.min(timex_bar) - (np.max(timex_bar) - np.min(timex_bar)) / min_ratio
     interp_weights = 1.0 / np.interp(xyz[:, 0], xm, timex_bar - min0)
     valid_weights = ~np.isnan(interp_weights)
-    GWt = G[:, valid_weights] * interp_weights[valid_weights]
+    GWt = G[valid_weights, :] * interp_weights[valid_weights]
     GWt = GWt / np.sum(interp_weights[valid_weights])
     GBar = np.mean(np.abs(GWt), axis=1)
     GBar2 = detrend(GBar)
