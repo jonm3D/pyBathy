@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        . venv/bin/activate
+        pip install -r requirements.txt
+        pip install black flake8
+
+    - name: Run Flake8 and auto-fix issues
+      run: |
+        . venv/bin/activate
+        flake8 --max-line-length=88 openoceans tests --format=default --output-file=flake8-report.txt || true
+        cat flake8-report.txt | grep -oE '^[^:]+(?=:.+)' | sort -u | xargs black || true
+
+    - name: Format code with Black
+      run: |
+        . venv/bin/activate
+        black openoceans tests
+
+    - name: Commit changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add .
+        git commit -m 'Auto-fix linting and formatting issues' || echo "No changes to commit"
+        git push origin HEAD:${{ github.ref }}

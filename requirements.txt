@@ -1,0 +1,6 @@
+numpy
+matplotlib
+scikit-image
+scipy
+scikit-learn
+netCDF4
