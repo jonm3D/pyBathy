@@ -1,14 +1,12 @@
 import os
 import numpy as np
 import re
-from skimage.io import imread
-from skimage.exposure import equalize_adapthist
 from multiprocessing import Pool, cpu_count, Value, Lock
 import matplotlib.pyplot as plt
 from datetime import datetime
-from tqdm import tqdm  # Import tqdm for progress bar
+from tqdm import tqdm
+import cv2  # OpenCV for faster image processing
 from pyBathy.utils import plot_region_of_interest, plot_results
-# from pyBathy import skysat, prep_bathy_input, analyze_bathy_collect
 from pyBathy.skysat import skysat
 from pyBathy.analyze_bathy_collect import analyze_bathy_collect
 from pyBathy.prep_bathy_input import prep_bathy_input
@@ -38,10 +36,9 @@ def initialize_worker(shared_counter, shared_lock):
 
 def load_and_preprocess_image(args):
     frames_dir, image_name, sy, ey, sx, ex, res, use_equalization = args
-    image = np.flipud(imread(os.path.join(frames_dir, image_name)))
-    if image.ndim == 3:
-        image = image[:, :, 0]
-    result = equalize_adapthist(image[sy:ey:res, sx:ex:res]) if use_equalization else image[sy:ey:res, sx:ex:res]
+    image = cv2.imread(os.path.join(frames_dir, image_name), cv2.IMREAD_GRAYSCALE)
+    image = np.flipud(image)
+    result = cv2.equalizeHist(image[sy:ey:res, sx:ex:res]) if use_equalization else image[sy:ey:res, sx:ex:res]
     
     with lock:
         counter.value += 1
@@ -75,12 +72,11 @@ def process_directory(selected_dir, enable_plotting, use_equalization=False, max
     sx, ex, sy, ey = 700, 1800, 300, 1300
     Xg, Yg = np.meshgrid(Xv[sx:ex:res], Yv[sy:ey:res])
     
-    I = np.flipud(imread(os.path.join(frames_dir, dc[0])))
-    if I.ndim == 3:
-        I = I[:, :, 0]
+    I = cv2.imread(os.path.join(frames_dir, dc[0]), cv2.IMREAD_GRAYSCALE)
+    I = np.flipud(I)
     Ig = I[sy:ey:res, sx:ex:res]
     
-    TS = np.zeros((Ig.shape[0], Ig.shape[1], len(range(1, len(dc), t_res))))
+    TS = np.zeros((Ig.shape[0], Ig.shape[1], len(range(0, len(dc), t_res))))
 
     # Shared counter for progress tracking
     shared_counter = Value('i', 0)
@@ -88,7 +84,7 @@ def process_directory(selected_dir, enable_plotting, use_equalization=False, max
 
     print("Starting parallel processing for image loading and preprocessing...")
     with Pool(processes=cpu_count(), initializer=initialize_worker, initargs=(shared_counter, shared_lock)) as pool:
-        tasks = [(frames_dir, dc[i], sy, ey, sx, ex, res, use_equalization) for i in range(1, len(dc), t_res)]
+        tasks = [(frames_dir, dc[i], sy, ey, sx, ex, res, use_equalization) for i in range(0, len(dc), t_res)]
         results = list(tqdm(pool.imap(load_and_preprocess_image, tasks), total=len(tasks)))
         for ind, res in enumerate(results):
             TS[:, :, ind] = res
@@ -107,10 +103,9 @@ def process_directory(selected_dir, enable_plotting, use_equalization=False, max
     rowIND = yindgrid.flatten()
     colIND = xindgrid.flatten()
 
-    data = []
+    data = np.zeros((len(rowIND), TS.shape[2]))
     for i in range(len(rowIND)):
-        data.append(TS[rowIND[i], colIND[i], :])
-    data = np.array(data)
+        data[i, :] = TS[rowIND[i], colIND[i], :]
 
     xyz = np.column_stack((Xg.flatten(), Yg.flatten(), np.zeros(Xg.size)))
     params = skysat()
@@ -120,9 +115,9 @@ def process_directory(selected_dir, enable_plotting, use_equalization=False, max
     
     print("Preparing input for bathymetric analysis...")
     f, G, bathy = prep_bathy_input(xyz, tepoch_cut, data, bathy)
-    print("Completed preparing input for bathymetric analysis. Running analyzeBathyCollect...")
+    print("Completed preparing input for bathymetric analysis. Running analyze_bathy_collect...")
     bathy = analyze_bathy_collect(xyz, tepoch_cut, data, cam, bathy)
-    print("Completed analyzeBathyCollect. Generating plots and output...")
+    print("Completed analyze_bathy_collect. Generating plots and output...")
     
     if enable_plotting:
         print("Starting result plotting...")
@@ -137,7 +132,7 @@ if __name__ == "__main__":
     base_dir = '/Users/jonathan/Desktop/frf_collects/'
     enable_plotting = False
     use_equalization = False  # Set default to False
-    max_seconds = 5  # Set the maximum number of seconds to load for faster testing
+    max_seconds = None  # Set the maximum number of seconds to load for faster testing
     
     directories = list_directories(base_dir)
     selected_idx = select_directory(directories)

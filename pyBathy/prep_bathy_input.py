@@ -6,17 +6,18 @@ def prep_bathy_input(xyz, epoch, data, bathy):
     params = bathy["params"]
 
     # Ensure epoch is a column vector
-    if epoch.ndim == 1:
+    if epoch.ndim == 1 or epoch.shape[1] > epoch.shape[0]:
         epoch = epoch.reshape(-1, 1)
 
     fB = params["fB"]
     dfB = fB[1] - fB[0]
 
-    # Detrend and FFT the data along the time axis (axis=0)
-    G = fft(detrend(data.astype(np.float64), axis=0), axis=0)
+    # Detrend and FFT the data along the time axis (axis=1)
+    data_detrended = detrend(data.astype(np.float64), axis=1)
+    G = fft(data_detrended, axis=1)
 
     # Calculate the time step and frequency vector
-    dt = np.mean(np.diff(epoch, axis=0))
+    dt = np.mean(np.diff(epoch[:, 0]))
     df = 1 / (len(epoch) * dt)
     f = np.arange(0, 1 / (2 * dt), df)
 
@@ -25,15 +26,18 @@ def prep_bathy_input(xyz, epoch, data, bathy):
     f = f[freq_indices]
     G = G[:, freq_indices]
 
+    # Size of x and y intervals
     dxm = params["dxm"]
     dym = params["dym"]
 
+    # Span from the minimum X to maximum X in steps of dxm. Ditto Y.
+    # Round lower boundary. If exists xyMinMax, let user set xm, ym.
     if params["xyMinMax"]:
-        xm = np.arange(params["xyMinMax"][0], params["xyMinMax"][1], dxm)
-        ym = np.arange(params["xyMinMax"][2], params["xyMinMax"][3], dym)
+        xm = np.arange(params["xyMinMax"][0], params["xyMinMax"][1] + dxm, dxm)
+        ym = np.arange(params["xyMinMax"][2], params["xyMinMax"][3] + dym, dym)
     else:
-        xm = np.arange(np.ceil(np.min(xyz[:, 0]) / dxm) * dxm, np.max(xyz[:, 0]), dxm)
-        ym = np.arange(np.ceil(np.min(xyz[:, 1]) / dym) * dym, np.max(xyz[:, 1]), dym)
+        xm = np.arange(np.ceil(np.min(xyz[:, 0]) / dxm) * dxm, np.max(xyz[:, 0]) + dxm, dxm)
+        ym = np.arange(np.ceil(np.min(xyz[:, 1]) / dym) * dym, np.max(xyz[:, 1]) + dym, dym)
 
     bathy["tide"] = {"zt": np.nan, "e": 0, "source": ""}
     bathy["xm"] = xm
@@ -79,3 +83,9 @@ def prep_bathy_input(xyz, epoch, data, bathy):
     bathy["cpuTime"] = np.nan
 
     return f, G, bathy
+
+# outputs something like
+# f.shape
+# (8,)
+# G.shape
+# (275000, 8)

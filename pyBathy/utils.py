@@ -31,7 +31,6 @@ def use_interp_map(image, interp_map, weights):
     interpolated_values = np.zeros(shape[0])
 
     for i in range(shape[0]):
-        print(i)
         valid_indices = ~np.isnan(weights[i, :])
         if np.any(valid_indices):
             interpolated_values[i] = np.sum(image[interp_map[i, valid_indices]] * weights[i, valid_indices])

@@ -5,3 +5,4 @@ scipy
 scikit-learn
 netCDF4
 tqdm
+opencv-python

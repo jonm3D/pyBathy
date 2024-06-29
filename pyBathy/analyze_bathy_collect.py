@@ -50,7 +50,9 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     min0 = np.min(timex_bar) - (np.max(timex_bar) - np.min(timex_bar)) / min_ratio
     interp_weights = 1.0 / np.interp(xyz[:, 0], xm, timex_bar - min0)
     valid_weights = ~np.isnan(interp_weights)
-    GWt = G[valid_weights, :] * interp_weights[valid_weights]
+
+    # Ensure valid_weights align with G's columns
+    GWt = G[:, valid_weights] * interp_weights[valid_weights]
     GWt = GWt / np.sum(interp_weights[valid_weights])
     GBar = np.mean(np.abs(GWt), axis=1)
     GBar2 = detrend(GBar)
