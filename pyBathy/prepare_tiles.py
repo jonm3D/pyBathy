@@ -1,20 +1,23 @@
 import numpy as np
 from .find_k_alpha_seed import find_k_alpha_seed
 
+
 def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
     kL = 1.0
-    max_n_pix = bathy['params']['maxNPix']
-    n_f = bathy['params']['nKeep']
+    max_n_pix = bathy["params"]["maxNPix"]
+    n_f = bathy["params"]["nKeep"]
     lam1_norms = np.nan * np.ones(n_f)
     center_inds = np.nan * np.ones(n_f)
-    Lx = bathy['params']['Lx']
-    Ly = bathy['params']['Ly']
+    Lx = bathy["params"]["Lx"]
+    Ly = bathy["params"]["Ly"]
     fB = f
 
-    id_use = np.where((xy[:, 0] >= xm - Lx) &
-                      (xy[:, 0] <= xm + Lx) &
-                      (xy[:, 1] >= ym - Ly) &
-                      (xy[:, 1] <= ym + Ly))[0]
+    id_use = np.where(
+        (xy[:, 0] >= xm - Lx)
+        & (xy[:, 0] <= xm + Lx)
+        & (xy[:, 1] >= ym - Ly)
+        & (xy[:, 1] <= ym + Ly)
+    )[0]
 
     cams = cam[id_use]
     unique_cams = np.unique(cams)
@@ -47,8 +50,8 @@ def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
         subXY = []
         lam1_norms = nada
     else:
-        fs = np.squeeze(bathy['fDependent']['fB'][0, 0, :])
-        lam1_norms = np.squeeze(bathy['fDependent']['lam1'][0, 0, :])
+        fs = np.squeeze(bathy["fDependent"]["fB"][0, 0, :])
+        lam1_norms = np.squeeze(bathy["fDependent"]["lam1"][0, 0, :])
 
         kAlpha0 = np.nan * np.ones((len(fs), 2))
         subvs = [None] * len(fs)
@@ -60,10 +63,12 @@ def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
 
             Lx_temp = np.pi / kAlpha0[i, 0] * kL
             Ly_temp = Lx_temp * Ly / Lx
-            id_use = np.where((subxy[:, 0] >= xm - Lx_temp) &
-                              (subxy[:, 0] <= xm + Lx_temp) &
-                              (subxy[:, 1] >= ym - Ly_temp) &
-                              (subxy[:, 1] <= ym + Ly_temp))[0]
+            id_use = np.where(
+                (subxy[:, 0] >= xm - Lx_temp)
+                & (subxy[:, 0] <= xm + Lx_temp)
+                & (subxy[:, 1] >= ym - Ly_temp)
+                & (subxy[:, 1] <= ym + Ly_temp)
+            )[0]
             valid_tile = False
             if len(id_use) >= min_n_pix:
                 spanx = np.max(subxy[:, 0]) - np.min(subxy[:, 0])

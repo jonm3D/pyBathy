@@ -9,6 +9,7 @@ from tqdm import tqdm
 from .prep_bathy_input import prep_bathy_input
 import matplotlib.pyplot as plt
 
+
 def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     import time
 
@@ -52,16 +53,18 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     valid_weights = ~np.isnan(interp_weights)
 
     # Ensure valid_weights align with G's columns
-    GWt = G[valid_weights, :] * interp_weights[valid_weights][:, np.newaxis]    
+    GWt = G[valid_weights, :] * interp_weights[valid_weights][:, np.newaxis]
     GWt = GWt / np.sum(interp_weights[valid_weights])
     GBar = np.mean(np.abs(GWt), axis=0)
     GBar2 = detrend(GBar)
     GSortInd = np.argsort(GBar)[::-1]
-    fs = f[GSortInd[:bathy["params"]["nKeep"]]]
-    Gs = GBar[GSortInd[:bathy["params"]["nKeep"]]]
+    fs = f[GSortInd[: bathy["params"]["nKeep"]]]
+    Gs = GBar[GSortInd[: bathy["params"]["nKeep"]]]
 
     bathy["fDependent"]["fB"] = np.tile(fs, (len(ym), len(xm), 1)).transpose((1, 2, 0))
-    bathy["fDependent"]["lam1"] = np.tile(Gs, (len(ym), len(xm), 1)).transpose((1, 2, 0))
+    bathy["fDependent"]["lam1"] = np.tile(Gs, (len(ym), len(xm), 1)).transpose(
+        (1, 2, 0)
+    )
 
     if bathy["params"]["debug"]["DOSHOWPROGRESS"]:
         plt.figure(21)
@@ -79,12 +82,14 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     with tqdm(total=len(bathy["xm"]) * len(bathy["ym"])) as progress_bar:
         for xind in range(len(bathy["xm"])):
             for yind in range(len(bathy["ym"])):
-                fDep, camUsed = csm_invert_k_alpha(f, G, xyz[:, :2], cam, bathy["xm"][xind], bathy["ym"][yind], bathy)
+                fDep, camUsed = csm_invert_k_alpha(
+                    f, G, xyz[:, :2], cam, bathy["xm"][xind], bathy["ym"][yind], bathy
+                )
 
                 bathy["fDependent"]["kSeed"][yind, xind, :] = fDep["kSeed"]
                 bathy["fDependent"]["aSeed"][yind, xind, :] = fDep["aSeed"]
                 bathy["fDependent"]["camUsed"][yind, xind] = camUsed
-                
+
                 if any(~np.isnan(fDep["k"])):
                     bathy["fDependent"]["k"][yind, xind, :] = fDep["k"]
                     bathy["fDependent"]["a"][yind, xind, :] = fDep["a"]
@@ -105,5 +110,5 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     bathy["cpuTime"] = time.time() - start_time
 
     print("Completed processing for csm_invert_k_alpha.")
-    
+
     return bathy

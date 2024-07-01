@@ -2,6 +2,7 @@ import numpy as np
 from scipy.fftpack import fft
 from scipy.signal import detrend
 
+
 def prep_bathy_input(xyz, epoch, data, bathy):
     params = bathy["params"]
 
@@ -36,8 +37,12 @@ def prep_bathy_input(xyz, epoch, data, bathy):
         xm = np.arange(params["xyMinMax"][0], params["xyMinMax"][1] + dxm, dxm)
         ym = np.arange(params["xyMinMax"][2], params["xyMinMax"][3] + dym, dym)
     else:
-        xm = np.arange(np.ceil(np.min(xyz[:, 0]) / dxm) * dxm, np.max(xyz[:, 0]) + dxm, dxm)
-        ym = np.arange(np.ceil(np.min(xyz[:, 1]) / dym) * dym, np.max(xyz[:, 1]) + dym, dym)
+        xm = np.arange(
+            np.ceil(np.min(xyz[:, 0]) / dxm) * dxm, np.max(xyz[:, 0]) + dxm, dxm
+        )
+        ym = np.arange(
+            np.ceil(np.min(xyz[:, 1]) / dym) * dym, np.max(xyz[:, 1]) + dym, dym
+        )
 
     bathy["tide"] = {"zt": np.nan, "e": 0, "source": ""}
     bathy["xm"] = xm
@@ -83,6 +88,7 @@ def prep_bathy_input(xyz, epoch, data, bathy):
     bathy["cpuTime"] = np.nan
 
     return f, G, bathy
+
 
 # outputs something like
 # f.shape
