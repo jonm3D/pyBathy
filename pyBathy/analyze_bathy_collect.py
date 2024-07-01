@@ -3,9 +3,9 @@ from scipy.signal import detrend
 from scipy.fftpack import fft
 from .utils import find_interp_map, use_interp_map, plot_stacks_and_phase_maps
 from .bathy_from_k_alpha import bathy_from_k_alpha
+from .csm_invert_k_alpha import csm_invert_k_alpha
 from .fix_bathy_tide import fix_bathy_tide
 from tqdm import tqdm
-from multiprocessing import Pool, cpu_count
 from .prep_bathy_input import prep_bathy_input
 import matplotlib.pyplot as plt
 
@@ -52,9 +52,9 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     valid_weights = ~np.isnan(interp_weights)
 
     # Ensure valid_weights align with G's columns
-    GWt = G[:, valid_weights] * interp_weights[valid_weights]
+    GWt = G[valid_weights, :] * interp_weights[valid_weights][:, np.newaxis]    
     GWt = GWt / np.sum(interp_weights[valid_weights])
-    GBar = np.mean(np.abs(GWt), axis=1)
+    GBar = np.mean(np.abs(GWt), axis=0)
     GBar2 = detrend(GBar)
     GSortInd = np.argsort(GBar)[::-1]
     fs = f[GSortInd[:bathy["params"]["nKeep"]]]
@@ -74,22 +74,17 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
         plt.title("Analysis Progress")
         plt.draw()
 
-    print("Starting parallel processing for csm_invert_k_alpha...")
-
-    def parallel_invert(args):
-        yind, f, G, xyz, cam, x, y, bathy = args
-        return csm_invert_k_alpha(f, G, xyz[:, :2], cam, x, y, bathy)
+    print("Starting processing for csm_invert_k_alpha...")
 
     with tqdm(total=len(bathy["xm"]) * len(bathy["ym"])) as progress_bar:
         for xind in range(len(bathy["xm"])):
-            args = [(yind, f, G, xyz, cam, bathy["xm"][xind], bathy["ym"][yind], bathy) for yind in range(len(bathy["ym"]))]
-            with Pool(processes=cpu_count()) as pool:
-                results = pool.map(parallel_invert, args)
+            for yind in range(len(bathy["ym"])):
+                fDep, camUsed = csm_invert_k_alpha(f, G, xyz[:, :2], cam, bathy["xm"][xind], bathy["ym"][yind], bathy)
 
-            for yind, (fDep, camUsed) in enumerate(results):
                 bathy["fDependent"]["kSeed"][yind, xind, :] = fDep["kSeed"]
                 bathy["fDependent"]["aSeed"][yind, xind, :] = fDep["aSeed"]
                 bathy["fDependent"]["camUsed"][yind, xind] = camUsed
+                
                 if any(~np.isnan(fDep["k"])):
                     bathy["fDependent"]["k"][yind, xind, :] = fDep["k"]
                     bathy["fDependent"]["a"][yind, xind, :] = fDep["a"]
@@ -109,6 +104,6 @@ def analyze_bathy_collect(xyz, epoch, data, cam, bathy):
     bathy = fix_bathy_tide(bathy)
     bathy["cpuTime"] = time.time() - start_time
 
-    print("Completed parallel processing for csm_invert_k_alpha.")
+    print("Completed processing for csm_invert_k_alpha.")
     
     return bathy

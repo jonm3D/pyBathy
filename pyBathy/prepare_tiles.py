@@ -1,95 +1,91 @@
 import numpy as np
-from .utils import find_k_alpha_seed
-
+from .find_k_alpha_seed import find_k_alpha_seed
 
 def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
     kL = 1.0
-    maxNPix = bathy["params"]["maxNPix"]
-    nf = bathy["params"]["nKeep"]
-    lam1Norms = np.full(nf, np.nan)
-    centerInds = np.full(nf, np.nan)
-    Lx = bathy["params"]["Lx"]
-    Ly = bathy["params"]["Ly"]
+    max_n_pix = bathy['params']['maxNPix']
+    n_f = bathy['params']['nKeep']
+    lam1_norms = np.nan * np.ones(n_f)
+    center_inds = np.nan * np.ones(n_f)
+    Lx = bathy['params']['Lx']
+    Ly = bathy['params']['Ly']
+    fB = f
 
-    idUse = np.where(
-        (xy[:, 0] >= xm - Lx)
-        & (xy[:, 0] <= xm + Lx)
-        & (xy[:, 1] >= ym - Ly)
-        & (xy[:, 1] <= ym + Ly)
-    )[0]
+    id_use = np.where((xy[:, 0] >= xm - Lx) &
+                      (xy[:, 0] <= xm + Lx) &
+                      (xy[:, 1] >= ym - Ly) &
+                      (xy[:, 1] <= ym + Ly))[0]
 
-    cams = cam[idUse]
-    uniqueCams, N = np.unique(cams, return_counts=True)
-    pick = np.argmax(N)
-    camUsed = uniqueCams[pick]
-    pick = np.where(cams == camUsed)[0]
+    cams = cam[id_use]
+    unique_cams = np.unique(cams)
+    N = np.array([np.sum(cams == uc) for uc in unique_cams])
+    pick = []
+    cam_used = -1
+    if len(N) > 0:
+        pick_cam = np.argmax(N)
+        cam_used = unique_cams[pick_cam]
+        pick = np.where(cams == cam_used)[0]
 
-    subG = G[:, idUse[pick]]
-    subxy = xy[idUse[pick], :]
+    subG = G[:, id_use[pick]]
+    subxy = xy[id_use[pick], :]
 
-    validTile = False
-    if len(idUse[pick]) >= 16:
-        spanx = np.ptp(subxy[:, 0])
-        spany = np.ptp(subxy[:, 1])
-        if spanx >= 2 and spany >= 2:
-            validTile = True
+    min_n_pix = 16
+    valid_tile = False
+    if len(id_use[pick]) >= min_n_pix:
+        min_spanx = 2
+        min_spany = 2
+        spanx = np.max(subxy[:, 0]) - np.min(subxy[:, 0])
+        spany = np.max(subxy[:, 1]) - np.min(subxy[:, 1])
+        if spanx >= min_spanx and spany >= min_spany:
+            valid_tile = True
 
-    if not validTile:
-        fs = np.full(nf, np.nan)
-        kAlpha0 = np.full((nf, 2), np.nan)
+    if not valid_tile:
+        nada = np.nan * np.ones(n_f)
+        fs = nada
+        kAlpha0 = np.nan * np.ones((n_f, 2))
         subvs = []
         subXY = []
-        return fs, kAlpha0, subvs, subXY, camUsed, lam1Norms, centerInds
+        lam1_norms = nada
+    else:
+        fs = np.squeeze(bathy['fDependent']['fB'][0, 0, :])
+        lam1_norms = np.squeeze(bathy['fDependent']['lam1'][0, 0, :])
 
-    CAll = np.array(
-        [
-            np.matmul(subG[idx, :].T, subG[idx, :]) / len(idx)
-            for idx in np.where(
-                (f >= bathy["params"]["fB"][j] - (f[1] - f[0]) / 2)
-                & (f <= bathy["params"]["fB"][j] + (f[1] - f[0]) / 2)
-            )[0]
-            for j in range(len(bathy["params"]["fB"]))
-        ]
-    )
+        kAlpha0 = np.nan * np.ones((len(fs), 2))
+        subvs = [None] * len(fs)
+        subXY = [None] * len(fs)
+        for i in range(len(fs)):
+            indf = np.where(f == fs[i])[0]
+            v = subG[indf, :].T
+            kAlpha0[i, :], center_inds[i] = find_k_alpha_seed(subxy, v, xm, ym)
 
-    coh2 = np.sum(np.abs(CAll), axis=(1, 2))
-    coh2Sortid = np.argsort(coh2)[::-1]
-    fs = bathy["params"]["fB"][coh2Sortid[:nf]]
+            Lx_temp = np.pi / kAlpha0[i, 0] * kL
+            Ly_temp = Lx_temp * Ly / Lx
+            id_use = np.where((subxy[:, 0] >= xm - Lx_temp) &
+                              (subxy[:, 0] <= xm + Lx_temp) &
+                              (subxy[:, 1] >= ym - Ly_temp) &
+                              (subxy[:, 1] <= ym + Ly_temp))[0]
+            valid_tile = False
+            if len(id_use) >= min_n_pix:
+                spanx = np.max(subxy[:, 0]) - np.min(subxy[:, 0])
+                spany = np.max(subxy[:, 1]) - np.min(subxy[:, 1])
+                if spanx >= min_spanx and spany >= min_spany:
+                    valid_tile = True
 
-    kAlpha0 = np.full((len(fs), 2), np.nan)
-    subvs = [None] * len(fs)
-    subXY = [None] * len(fs)
+            if valid_tile:
+                subvs[i] = v[id_use]
+                subXY[i] = subxy[id_use, :]
+                del_step = max(1, len(id_use) // max_n_pix)
+                if del_step > 1:
+                    inds = np.round(np.arange(0, len(subvs[i]), del_step)).astype(int)
+                    subvs[i] = subvs[i][inds]
+                    subXY[i] = subXY[i][inds, :]
+                    xy = subXY[i]
+                    d = np.sqrt((xy[:, 0] - xm) ** 2 + (xy[:, 1] - ym) ** 2)
+                    center_inds[i] = np.argmin(d)
+            else:
+                fs[i] = np.nan
+                subvs[i] = []
+                subXY[i] = []
+                lam1_norms[i] = np.nan
 
-    for i in range(len(fs)):
-        indf = coh2Sortid[i]
-        C = CAll[indf, :, :]
-        eigvals, eigvecs = np.linalg.eigh(C)
-        lam1Norms[i] = eigvals[-1]
-        kAlpha0[i, :], centerInds[i] = find_k_alpha_seed(subxy, eigvecs[:, -1], xm, ym)
-
-        LxTemp = np.pi / kAlpha0[i, 0] * kL
-        LyTemp = LxTemp * Ly / Lx
-        idUse = np.where(
-            (subxy[:, 0] >= xm - LxTemp)
-            & (subxy[:, 0] <= xm + LxTemp)
-            & (subxy[:, 1] >= ym - LyTemp)
-            & (subxy[:, 1] <= ym + LyTemp)
-        )[0]
-
-        if len(idUse) >= 16:
-            subvs[i] = eigvecs[idUse, -1]
-            subXY[i] = subxy[idUse, :]
-            if len(idUse) > maxNPix:
-                inds = np.linspace(0, len(subvs[i]) - 1, maxNPix, dtype=int)
-                subvs[i] = subvs[i][inds]
-                subXY[i] = subXY[i][inds, :]
-
-            d = np.sqrt((subXY[i][:, 0] - xm) ** 2 + (subXY[i][:, 1] - ym) ** 2)
-            centerInds[i] = np.argmin(d)
-        else:
-            fs[i] = np.nan
-            subvs[i] = None
-            subXY[i] = None
-            lam1Norms[i] = np.nan
-
-    return fs, kAlpha0, subvs, subXY, camUsed, lam1Norms, centerInds
+    return fs, kAlpha0, subvs, subXY, cam_used, lam1_norms, center_inds
