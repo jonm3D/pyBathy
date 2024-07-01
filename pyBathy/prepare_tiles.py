@@ -26,7 +26,7 @@ def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
         cam_used = unique_cams[pick_cam]
         pick = np.where(cams == cam_used)[0]
 
-    subG = G[:, id_use[pick]]
+    subG = G[id_use[pick], :]
     subxy = xy[id_use[pick], :]
 
     min_n_pix = 16
@@ -55,7 +55,7 @@ def prepare_tiles(f, G, xy, cam, xm, ym, bathy):
         subXY = [None] * len(fs)
         for i in range(len(fs)):
             indf = np.where(f == fs[i])[0]
-            v = subG[indf, :].T
+            v = subG[:, indf].T
             kAlpha0[i, :], center_inds[i] = find_k_alpha_seed(subxy, v, xm, ym)
 
             Lx_temp = np.pi / kAlpha0[i, 0] * kL

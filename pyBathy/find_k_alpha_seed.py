@@ -21,6 +21,7 @@ def find_k_alpha_seed(xy, v, xm, ym):
     x = np.arange(x1, x2 + dxy, dxy)
     y = np.arange(y1, y2 + dxy, dxy)
     X, Y = np.meshgrid(x, y)
+    # stopped debugging here, pretty sure this is an order switching issue not a data size issue
     Iz0 = griddata((xy[:, 0], xy[:, 1]), va, (X, Y), method='linear')
     
     bad = np.isnan(Iz0)
